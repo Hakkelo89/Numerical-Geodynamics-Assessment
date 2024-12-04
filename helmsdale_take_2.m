@@ -119,16 +119,33 @@ end
 
 % Function to make output figure
 function makefig(x,z,T,t,yr)
-clf;
+    clf;
 
-% plot temperature in subplot 1
-imagesc(x,z,T); axis equal tight; colorbar; hold on
-contour(x,z,T,[100,150,200],'k');
-drawnow
-ylabel('z [m]','FontSize',15)
-title('Temperature [C]','FontSize',17)
-
+    % Plot temperature
+    imagesc(x, z, T); 
+    axis equal tight; 
+    colorbarHandle = colorbar; % Get the handle for the color bar
+    ylabel(colorbarHandle, 'Temperature [°C]', 'FontSize', 15); % Label the color bar
+    
+    hold on;
+    
+    % Add contour lines for specific temperature values
+    contour(x, z, T, [100, 150, 200], 'k');
+    
+    % Flip the direction of the depth axis for intuitive representation
+    set(gca, 'YDir', 'reverse'); 
+    
+    % Add depth ticks and labels on the z-axis
+    ylabel('Depth (z) [m]', 'FontSize', 15);
+    xlabel('Horizontal Distance (x) [m]', 'FontSize', 15);
+    
+    % Title with current time in years
+    title(sprintf('Temperature Distribution at t = %.2f years', t / yr), 'FontSize', 17);
+    
+    % Update the plot
+    drawnow;
 end
+
 
 % Function to calculate diffusion rate
 function [dTdt] = diffusion(f,k,h,ix,iz,geotherm)
