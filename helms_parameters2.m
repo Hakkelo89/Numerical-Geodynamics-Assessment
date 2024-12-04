@@ -86,4 +86,4 @@ tol   = 1e-8;         % residual tolerance
 nup   = 100;          % update T, check residual every nup iterations
 dTdto = 0;
 
-run('./diff_model_helmsdale.m');
+run('./helmsdale_take_2.m');
