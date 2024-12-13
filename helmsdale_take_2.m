@@ -1,131 +1,137 @@
-
 %***** 2D ADVECTION DIFFUSION MODEL OF HEAT TRANSPORT *******************
-%***** Initialise Model Setup
+% This script simulates the 2D heat transport using advection-diffusion
+% equations and solves it numerically using the Runge-Kutta 4th-order (RK4) method.
 
-%Image data obtained
-% create x-coordinate vectors
-xc = h/2:h:W-h/2; % x-coordinate vector for cell centre positions [m]
-zc = h/2:h:D-h/2; % z-coordinate vector for cell centre positions [m]
-xf = 0:h:W; % x-coordinate vectore for cell face positions [m]
-zf = 0:h:D; % z-coordinate vectore for cell face positions [m]
-[Xc,Zc] = meshgrid(xc,zc); % create 2D coordinate arrays
-%Coordinate grid on the output / for code interpretation: use this as the
-%model grid
+%***** Initialise Model Setup ******************************************
 
-%Insulating Sides
-ix3 = [ 1,1:Nx,Nx ];
+% Define grid coordinates for cell centers and faces based on grid spacing.
+xc = h/2:h:W-h/2; % x-coordinate vector for cell center positions [m].
+zc = h/2:h:D-h/2; % z-coordinate vector for cell center positions [m].
+xf = 0:h:W; % x-coordinate vector for cell face positions [m].
+zf = 0:h:D; % z-coordinate vector for cell face positions [m].
 
-%Set up Insulating Top and Bottom
-iz3 = [ 1,1:Nz,Nz ];
+% Create 2D coordinate arrays for the grid.
+[Xc, Zc] = meshgrid(xc, zc); % Meshgrid defines the full grid in x and z directions.
 
+% Insulating boundaries:
+ix3 = [1, 1:Nx, Nx]; % Indices for insulating left and right sides of the domain.
+iz3 = [1, 1:Nz, Nz]; % Indices for insulating top and bottom boundaries.
 
+% Set the initial temperature distribution:
+T = Ttop + geotherm(2) .* Zc; % Initialize with a linear geothermal gradient.
+T(air) = Ttop; % Set temperature of air cells to the surface temperature.
 
-% set initial condition for temperature at cell centres
-T = Ttop + geotherm(2).*Zc; % initialise T array on linear gradient
-T(air) = Ttop;
-% initialise density and mobility
-rho = rho0.*(1 - aT.*(T-Ttop));
-kT = kT0.*ones(Nz,Nx);
+% Initialize material properties:
+rho = rho0 .* (1 - aT .* (T - Ttop)); % Density field accounting for thermal expansion.
+kT = kT0 .* ones(Nz, Nx); % Thermal conductivity field (initialized to uniform values).
 
-% initialise output figure with initial condition
-figure(1); clf
-makefig(xc,zc,T)
+% Initialize the figure to visualize the initial condition:
+figure(1); clf; % Create and clear the figure window.
+makefig(xc, zc, T); % Plot the initial temperature distribution.
 
-%***** Solve Model Equations
-dt = CFL * (h/2)^2/max(kT(:)); % initial time step [s]
+%***** Solve Model Equations *******************************************
 
-t = 0; % initial time [s]
-k = 0; % initial time step count
-dTdt = 0;
+% Compute the initial time step using the CFL condition:
+dt = CFL * (h/2)^2 / max(kT(:)); % CFL ensures numerical stability.
 
-% loop through time steps until stopping time reached
+% Initialize time-stepping variables:
+t = 0; % Current simulation time [s].
+k = 0; % Time step counter.
+dTdt = 0; % Rate of temperature change.
+
+% Time-stepping loop: Solve the equations until the simulation end time.
 while t <= tend
-    % increment time and step count
-    t = t+dt;
-    k = k+1;
-    % print time step header
-    %fprintf(1,'\n\n***** step = %d; dt = %1.3e; time = %1.3e \n\n',k,dt,t)
-    % store old temperature and rate
-    dTdto = dTdt;
-    To = T;
-    
-    % get rate of change
-    dTdt1 = diffusion(T           ,kT,h,ix3,iz3,geotherm, Hr, rho, Cp);
-    dTdt2 = diffusion(T+dTdt1/2*dt,kT,h,ix3,iz3,geotherm, Hr, rho, Cp);
-    dTdt3 = diffusion(T+dTdt2/2*dt,kT, h,ix3,iz3,geotherm, Hr, rho, Cp);
-    dTdt4 = diffusion(T+dTdt3  *dt,kT, h,ix3,iz3,geotherm, Hr, rho, Cp);
+    % Increment the time and step counter:
+    t = t + dt; % Update time by adding the time step.
+    k = k + 1; % Increment the step count.
 
-    Hs = (Hr*10^-6)./(rho.*Cp); %scale Hr to units of Watts 
+    % Store the previous temperature field and rate of change for RK4:
+    dTdto = dTdt; % Save the previous rate of change.
+    To = T; % Save the current temperature field.
 
-    T = T + (dTdt1 + 2*dTdt2 + 2*dTdt3 + dTdt4)/6 * dt + Hs;
+    % Calculate the temperature rate of change using RK4 stages:
+    dTdt1 = diffusion(T, kT, h, ix3, iz3, geotherm, Hr, rho, Cp); % Stage 1.
+    dTdt2 = diffusion(T + dTdt1 / 2 * dt, kT, h, ix3, iz3, geotherm, Hr, rho, Cp); % Stage 2.
+    dTdt3 = diffusion(T + dTdt2 / 2 * dt, kT, h, ix3, iz3, geotherm, Hr, rho, Cp); % Stage 3.
+    dTdt4 = diffusion(T + dTdt3 * dt, kT, h, ix3, iz3, geotherm, Hr, rho, Cp); % Stage 4.
 
-    T(air)=Ttop;
+    % Add the heat source term (Hr scaled to Watts).
+    Hs = (Hr * 10^-6) ./ (rho .* Cp);
 
-    Tana= T + geotherm(2).*Zc;
-     
+    % Update the temperature field using the RK4 method:
+    T = T + (dTdt1 + 2 * dTdt2 + 2 * dTdt3 + dTdt4) / 6 * dt + Hs;
 
-            % plot model progress every 'nop' time steps
-        if ~mod(k,nop)
-            makefig(xc,zc,T);
-        end
+    % Enforce boundary condition: Set air cells to surface temperature.
+    T(air) = Ttop;
 
+    % Analytical solution for validation (optional).
+    Tana = T + geotherm(2) .* Zc;
 
+    % Plot the model's progress every 'nop' time steps:
+    if ~mod(k, nop)
+        makefig(xc, zc, T); % Visualize the current temperature distribution.
+    end
 end
 
-        
-%*****  calculate numerical error norm
+%***** Calculate Numerical Error Norms *********************************
+% Evaluate the error between the numerical solution and analytical solution.
+Errx = norm(T - Tana, 2) ./ norm(Tana, 2); % Error in x-direction.
+Errz = norm(T - Tana, 1) ./ norm(Tana, 1); % Error in z-direction.
 
-Errx = norm(T - Tana,2)./norm(Tana,2); %error in x
-Errz = norm(T - Tana,1)./norm(Tana,1); %error in z
-
-
+% Display the errors and numerical scheme used:
 disp(' ');
-disp('Time integration scheme: RK4')
-disp(['Numerical error in x = ',num2str(Errx)]);
-disp(['Numerical error in z = ',num2str(Errz)]);
+disp('Time integration scheme: RK4');
+disp(['Numerical error in x = ', num2str(Errx)]);
+disp(['Numerical error in z = ', num2str(Errz)]);
 disp(' ');
+
 %***** Utility Functions ************************************************
 
-% Function to make output figure
-function makefig(x,z,T)
+% Function to visualize the temperature field:
+function makefig(x, z, T)
+    % Plot the temperature field as a color map:
+    imagesc(x, z, T); axis equal; % Display the temperature field and set aspect ratio.
+    c = colorbar; % Add a color bar to indicate temperature values.
+    hold on;
 
-    % plot temperature in subplot 1
-    imagesc(x,z,T); axis equal; c=colorbar; hold on
-    contour(x,z,T,[100,150,150],'k');
+    % Add contour lines for key temperature levels:
+    contour(x, z, T, [100, 150, 150], 'k'); % Contours for 100°C and 150°C.
 
-    [C, h] = contour(x, z, T, [150, 150], 'r', 'LineWidth', 2); % 150°C contour in red
-    clabel(C, h, 'FontSize', 12, 'Color', 'r'); % Optional: Label the 150°C contour
+    % Highlight specific contours with red lines and labels:
+    [C, h] = contour(x, z, T, [150, 150], 'r', 'LineWidth', 2); % 150°C in red.
+    clabel(C, h, 'FontSize', 12, 'Color', 'r'); % Optional: Add labels to the 150°C contour.
 
-    [C, h] = contour(x, z, T, [100, 100], 'r', 'LineWidth', 2); % 100°C contour in red
-    clabel(C, h, 'FontSize', 12, 'Color', 'r'); % Optional: Label the 100°C contour
-    drawnow
-     
-    xlabel('Horizontal Distance [m]', 'FontSize',15)
-    ylabel('Depth [m]','FontSize',15)
-    ylabel(c, 'C', 'FontSize',15)
-    title('Temperature','FontSize',18)
+    [C, h] = contour(x, z, T, [100, 100], 'r', 'LineWidth', 2); % 100°C in red.
+    clabel(C, h, 'FontSize', 12, 'Color', 'r'); % Optional: Add labels to the 100°C contour.
 
+    % Label the axes and title the figure:
+    xlabel('Horizontal Distance [m]', 'FontSize', 15); % Label for x-axis.
+    ylabel('Depth [m]', 'FontSize', 15); % Label for y-axis.
+    ylabel(c, 'Temperature [°C]', 'FontSize', 15); % Label for the color bar.
+    title('Temperature Distribution', 'FontSize', 18); % Add a title to the plot.
+
+    drawnow; % Refresh the plot to update changes.
 end
 
-% Function to calculate diffusion rate
-function [dTdt] = diffusion(f,k,h,ix,iz,geotherm, Hr, rho, Cp)
-% calculate heat flux by diffusion
-    kx = (k(:,ix(1:end-1)) + k(:,ix(2:end)))/2; %find the heat conductivity on the cell faces / edges in x direction
-    kz = (k(iz(1:end-1),:) + k(iz(2:end),:))/2; %find the heat conductivity on the cell faces / edges in z directionx
+% Function to calculate diffusion rate:
+function [dTdt] = diffusion(f, k, h, ix, iz, geotherm, Hr, rho, Cp)
+    % Compute thermal conductivity at cell faces:
+    kx = (k(:, ix(1:end-1)) + k(:, ix(2:end))) / 2; % x-direction conductivity.
+    kz = (k(iz(1:end-1), :) + k(iz(2:end), :)) / 2; % z-direction conductivity.
 
-    qx = - kx .* diff(f(:,ix), 1, 2)/h; %Calculate heat flux across the cell boundaries using kx in the x direction
-    qz = - kz .* diff(f(iz,:), 1, 1)/h; %Calculate heat flux across the cell boundaries using kz in the z direction 
+    % Compute heat flux at cell faces:
+    qx = -kx .* diff(f(:, ix), 1, 2) / h; % Heat flux in x-direction.
+    qz = -kz .* diff(f(iz, :), 1, 1) / h; % Heat flux in z-direction.
 
-    % basalt boundary
-    qz(end,:) = - kz(end,:) .* geotherm(2);
+    % Apply basal boundary condition for geothermal flux:
+    qz(end, :) = -kz(end, :) .* geotherm(2); % Enforce geothermal gradient.
 
-    % calculate flux balance for rate of change
-    dTdt_diffusion = - (diff(qx,1,2)/h+diff(qz,1,1)/h);
+    % Calculate temperature change due to flux divergence:
+    dTdt_diffusion = -(diff(qx, 1, 2) / h + diff(qz, 1, 1) / h);
 
-    % add heat source term using Hr data from Matprop table
-    heat_source = Hr./(rho.*Cp); % Source term due to heat production.
+    % Include radiogenic heat source:
+    heat_source = Hr ./ (rho .* Cp); % Convert radiogenic heat into temperature rate.
 
-    % total rate of change of temperature
-    dTdt = dTdt_diffusion + heat_source;
+    % Total temperature rate of change:
+    dTdt = dTdt_diffusion + heat_source; % Combine diffusion and source terms.
 end
-
