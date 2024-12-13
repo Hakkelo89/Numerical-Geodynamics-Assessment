@@ -135,3 +135,22 @@ function [dTdt] = diffusion(f, k, h, ix, iz, geotherm, Hr, rho, Cp)
     % Total temperature rate of change:
     dTdt = dTdt_diffusion + heat_source; % Combine diffusion and source terms.
 end
+% Validate against observed data
+fprintf('Validating against observed data...\n');
+temp_sim = interp1(zc, T, depth_obs);
+MAE = mean(abs(temp_obs - temp_sim));
+RMSE = sqrt(mean((temp_obs - temp_sim).^2));
+R2 = 1 - sum((temp_obs - temp_sim).^2) / sum((temp_obs - mean(temp_obs)).^2);
+fprintf('MAE: %.2f, RMSE: %.2f, R-squared: %.2f\n', MAE, RMSE, R2);
+
+% Plot results
+figure;
+plot(temp_obs, depth_obs, 'ro', 'DisplayName', 'Observed');
+hold on;
+plot(temp_sim, depth_obs, 'b-', 'DisplayName', 'Simulated');
+xlabel('Temperature (°C)');
+ylabel('Depth (m)');
+legend;
+title('Observed vs. Simulated Temperatures');
+set(gca, 'YDir', 'reverse');
+grid on;
